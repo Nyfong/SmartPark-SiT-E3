@@ -124,6 +124,50 @@ public class ParkingFeeCalculatorTests
     #endregion
 
     #region Overnight Fee
+
+    [Fact]
+    public void CalculateFee_Overnight_PastTenPM_AddsOvernightFee()
+    {
+        // Arrange — check in 8 PM, check out 11 PM (spans past 10 PM)
+        var checkIn = new DateTime(2026, 3, 16, 20, 0, 0);
+        var checkOut = new DateTime(2026, 3, 16, 23, 0, 0);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Guest, checkIn, checkOut);
+
+        // Assert — 2.5h past grace → 2 billable hours → 2,000 base + 2,000 overnight
+        Assert.Equal(4_000m, result.TotalFee);
+    }
+
+    [Fact]
+    public void CalculateFee_Overnight_CheckInAfterTenPM_AddsOvernightFee()
+    {
+        // Arrange — check in 11 PM, check out 6 AM next day
+        var checkIn = new DateTime(2026, 3, 16, 23, 0, 0);
+        var checkOut = new DateTime(2026, 3, 17, 6, 0, 0);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Guest, checkIn, checkOut);
+
+        // Assert — overnight fee applied
+        Assert.True(result.TotalFee > result.BaseFee);
+    }
+
+    [Fact]
+    public void CalculateFee_Overnight_NoOvernightBeforeTenPM_NoFee()
+    {
+        // Arrange — check in 8 AM, check out 5 PM (no overnight)
+        var checkIn = new DateTime(2026, 3, 16, 8, 0, 0);
+        var checkOut = new DateTime(2026, 3, 16, 17, 0, 0);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Guest, checkIn, checkOut);
+
+        // Assert — capped at 8,000, no overnight
+        Assert.Equal(8_000m, result.TotalFee);
+        Assert.Equal(result.BaseFee, result.TotalFee);
+    }
+
     #endregion
 
     #region Weekend Surcharge
