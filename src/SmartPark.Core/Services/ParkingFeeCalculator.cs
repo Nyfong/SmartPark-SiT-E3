@@ -81,21 +81,9 @@ public class ParkingFeeCalculator
         var billableHours = (int)Math.Ceiling((totalMinutes - GracePeriodMinutes) / 60.0);
         if (billableHours < 1) billableHours = 1;
 
-        // Step 4: Base fee
-        var hourlyRate = vehicleType switch
-        {
-            VehicleType.Motorcycle => MotorcycleRatePerHour,
-            VehicleType.Car => CarRatePerHour,
-            VehicleType.SUV => SuvRatePerHour,
-            _ => throw new ArgumentOutOfRangeException(nameof(vehicleType))
-        };
-        var dailyCap = vehicleType switch
-        {
-            VehicleType.Motorcycle => MotorcycleDailyCap,
-            VehicleType.Car => CarDailyCap,
-            VehicleType.SUV => SuvDailyCap,
-            _ => throw new ArgumentOutOfRangeException(nameof(vehicleType))
-        };
+        // Step 4: Base fee with daily cap
+        var hourlyRate = GetHourlyRate(vehicleType);
+        var dailyCap = GetDailyCap(vehicleType);
         var baseFee = Math.Min(billableHours * hourlyRate, dailyCap);
 
         return new ParkingFeeResult
@@ -105,4 +93,20 @@ public class ParkingFeeCalculator
             Breakdown = $"Vehicle: {vehicleType}, Hours: {billableHours}, Base: {baseFee} KHR"
         };
     }
+
+    private static decimal GetHourlyRate(VehicleType vehicleType) => vehicleType switch
+    {
+        VehicleType.Motorcycle => MotorcycleRatePerHour,
+        VehicleType.Car => CarRatePerHour,
+        VehicleType.SUV => SuvRatePerHour,
+        _ => throw new ArgumentOutOfRangeException(nameof(vehicleType))
+    };
+
+    private static decimal GetDailyCap(VehicleType vehicleType) => vehicleType switch
+    {
+        VehicleType.Motorcycle => MotorcycleDailyCap,
+        VehicleType.Car => CarDailyCap,
+        VehicleType.SUV => SuvDailyCap,
+        _ => throw new ArgumentOutOfRangeException(nameof(vehicleType))
+    };
 }
