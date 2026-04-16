@@ -100,6 +100,49 @@ public class ParkingFeeCalculatorTests
     private const int GracePeriodMinutes = 30;
 
     #region Duration Rounding
+
+    [Fact]
+    public void CalculateFee_DurationRounding_1Hour1MinPastGrace_BillsTwoHours()
+    {
+        // Arrange — 1h 1min past grace = 61 min → ceil(61/60) = 2 hours
+        var checkIn = new DateTime(2026, 3, 16, 10, 0, 0);
+        var checkOut = checkIn.AddMinutes(GracePeriodMinutes + 61);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Guest, checkIn, checkOut);
+
+        // Assert
+        Assert.Equal(2_000m, result.TotalFee);
+    }
+
+    [Fact]
+    public void CalculateFee_DurationRounding_Exactly1HourPastGrace_BillsOneHour()
+    {
+        // Arrange — exactly 1h30m total = 60 min past grace → ceil(60/60) = 1 hour
+        var checkIn = new DateTime(2026, 3, 16, 10, 0, 0);
+        var checkOut = checkIn.AddMinutes(90);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Guest, checkIn, checkOut);
+
+        // Assert
+        Assert.Equal(1_000m, result.TotalFee);
+    }
+
+    [Fact]
+    public void CalculateFee_DurationRounding_2H30MinPastGrace_BillsThreeHours()
+    {
+        // Arrange — 2h30m past grace = 150 min → ceil(150/60) = 3 hours
+        var checkIn = new DateTime(2026, 3, 16, 10, 0, 0);
+        var checkOut = checkIn.AddMinutes(GracePeriodMinutes + 150);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Guest, checkIn, checkOut);
+
+        // Assert
+        Assert.Equal(3_000m, result.TotalFee);
+    }
+
     #endregion
 
     #region Daily Cap
