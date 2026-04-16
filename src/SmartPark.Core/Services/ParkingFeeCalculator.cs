@@ -119,7 +119,7 @@ public class ParkingFeeCalculator
             DiscountAmount = discount,
             LostTicketPenalty = lostPenalty,
             TotalFee = totalFee,
-            Breakdown = $"Vehicle: {vehicleType}, Hours: {billableHours}, Base: {baseFee}, Surcharge: {surcharge}, Discount: {discount}, Overnight: {overnight}, Penalty: {lostPenalty} KHR"
+            Breakdown = BuildBreakdown(vehicleType, billableHours, baseFee, surcharge, discount, overnight, lostPenalty, totalFee)
         };
     }
 
@@ -146,6 +146,24 @@ public class ParkingFeeCalculator
         MembershipTier.Platinum => PlatinumDiscountRate,
         _ => 0m
     };
+
+    private static string BuildBreakdown(
+        VehicleType vehicleType, int hours, decimal baseFee,
+        decimal surcharge, decimal discount, decimal overnight,
+        decimal penalty, decimal total)
+    {
+        var parts = new List<string>
+        {
+            $"{vehicleType} | {hours}h billable",
+            $"Base: {baseFee:N0} KHR"
+        };
+        if (surcharge > 0) parts.Add($"Surcharge: +{surcharge:N0}");
+        if (discount > 0) parts.Add($"Discount: -{discount:N0}");
+        if (overnight > 0) parts.Add($"Overnight: +{overnight:N0}");
+        if (penalty > 0) parts.Add($"Lost ticket: +{penalty:N0}");
+        parts.Add($"Total: {total:N0} KHR");
+        return string.Join(" | ", parts);
+    }
 
     private static bool SessionSpansPastTenPM(DateTime checkIn, DateTime checkOut)
     {
