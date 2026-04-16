@@ -89,9 +89,14 @@ public class ParkingFeeCalculator
         // Step 5: Overnight fee
         var overnight = SessionSpansPastTenPM(checkIn, checkOut) ? OvernightFlatFee : 0m;
 
-        // Step 6: Weekend surcharge (applied to baseFee)
-        var isWeekend = checkIn.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-        var surcharge = isWeekend ? baseFee * WeekendSurchargeRate : 0m;
+        // Step 6: Surcharge — holiday (50%) takes priority over weekend (20%)
+        decimal surcharge;
+        if (isHoliday)
+            surcharge = baseFee * HolidaySurchargeRate;
+        else if (checkIn.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+            surcharge = baseFee * WeekendSurchargeRate;
+        else
+            surcharge = 0m;
 
         var totalFee = baseFee + surcharge + overnight;
 
