@@ -66,14 +66,18 @@ public class ParkingFeeCalculator
 
         var totalMinutes = (checkOut - checkIn).TotalMinutes;
 
-        // Step 2: Grace period
+        // Step 2: Grace period (lost ticket penalty still applies)
         if (totalMinutes <= GracePeriodMinutes)
         {
+            var penalty = isLostTicket ? LostTicketPenalty : 0m;
             return new ParkingFeeResult
             {
                 BaseFee = 0,
-                TotalFee = 0,
-                Breakdown = "Within grace period — free parking."
+                LostTicketPenalty = penalty,
+                TotalFee = penalty,
+                Breakdown = penalty > 0
+                    ? $"Grace period — lost ticket penalty: {penalty} KHR"
+                    : "Within grace period — free parking."
             };
         }
 
@@ -102,15 +106,20 @@ public class ParkingFeeCalculator
         var discountRate = GetDiscountRate(membership);
         var discount = (baseFee + surcharge) * discountRate;
 
-        var totalFee = baseFee + surcharge - discount + overnight;
+        // Step 8: Lost ticket penalty (not subject to discounts)
+        var lostPenalty = isLostTicket ? LostTicketPenalty : 0m;
+
+        // Step 9: Total (never negative)
+        var totalFee = Math.Max(0, baseFee + surcharge - discount + overnight + lostPenalty);
 
         return new ParkingFeeResult
         {
             BaseFee = baseFee,
             SurchargeAmount = surcharge,
             DiscountAmount = discount,
+            LostTicketPenalty = lostPenalty,
             TotalFee = totalFee,
-            Breakdown = $"Vehicle: {vehicleType}, Hours: {billableHours}, Base: {baseFee}, Surcharge: {surcharge}, Discount: {discount}, Overnight: {overnight} KHR"
+            Breakdown = $"Vehicle: {vehicleType}, Hours: {billableHours}, Base: {baseFee}, Surcharge: {surcharge}, Discount: {discount}, Overnight: {overnight}, Penalty: {lostPenalty} KHR"
         };
     }
 
