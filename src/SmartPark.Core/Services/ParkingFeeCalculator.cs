@@ -89,7 +89,14 @@ public class ParkingFeeCalculator
             VehicleType.SUV => SuvRatePerHour,
             _ => throw new ArgumentOutOfRangeException(nameof(vehicleType))
         };
-        var baseFee = billableHours * hourlyRate;
+        var dailyCap = vehicleType switch
+        {
+            VehicleType.Motorcycle => MotorcycleDailyCap,
+            VehicleType.Car => CarDailyCap,
+            VehicleType.SUV => SuvDailyCap,
+            _ => throw new ArgumentOutOfRangeException(nameof(vehicleType))
+        };
+        var baseFee = Math.Min(billableHours * hourlyRate, dailyCap);
 
         return new ParkingFeeResult
         {
