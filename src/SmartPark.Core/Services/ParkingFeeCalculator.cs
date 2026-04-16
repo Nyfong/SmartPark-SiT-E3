@@ -86,11 +86,16 @@ public class ParkingFeeCalculator
         var dailyCap = GetDailyCap(vehicleType);
         var baseFee = Math.Min(billableHours * hourlyRate, dailyCap);
 
+        // Step 5: Overnight fee
+        var overnight = SessionSpansPastTenPM(checkIn, checkOut) ? OvernightFlatFee : 0m;
+
+        var totalFee = baseFee + overnight;
+
         return new ParkingFeeResult
         {
             BaseFee = baseFee,
-            TotalFee = baseFee,
-            Breakdown = $"Vehicle: {vehicleType}, Hours: {billableHours}, Base: {baseFee} KHR"
+            TotalFee = totalFee,
+            Breakdown = $"Vehicle: {vehicleType}, Hours: {billableHours}, Base: {baseFee}, Overnight: {overnight} KHR"
         };
     }
 
@@ -109,4 +114,15 @@ public class ParkingFeeCalculator
         VehicleType.SUV => SuvDailyCap,
         _ => throw new ArgumentOutOfRangeException(nameof(vehicleType))
     };
+
+    private static bool SessionSpansPastTenPM(DateTime checkIn, DateTime checkOut)
+    {
+        if (checkIn.Hour >= OvernightHourThreshold || checkOut.Hour >= OvernightHourThreshold)
+            return true;
+
+        if (checkOut.Date > checkIn.Date)
+            return true;
+
+        return false;
+    }
 }

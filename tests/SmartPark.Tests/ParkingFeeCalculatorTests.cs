@@ -135,8 +135,9 @@ public class ParkingFeeCalculatorTests
         // Act
         var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Guest, checkIn, checkOut);
 
-        // Assert — 2.5h past grace → 2 billable hours → 2,000 base + 2,000 overnight
-        Assert.Equal(4_000m, result.TotalFee);
+        // Assert — 3h total - 30m grace = 2.5h → ceil(3) billable → 3,000 base + 2,000 overnight
+        Assert.Equal(3_000m, result.BaseFee);
+        Assert.Equal(5_000m, result.TotalFee);
     }
 
     [Fact]
