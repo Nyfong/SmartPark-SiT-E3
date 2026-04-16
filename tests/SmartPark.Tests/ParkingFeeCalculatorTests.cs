@@ -260,6 +260,43 @@ public class ParkingFeeCalculatorTests
     #endregion
 
     #region Membership Discounts
+
+    [Theory]
+    [InlineData(MembershipTier.Guest, 2_000)]
+    [InlineData(MembershipTier.Silver, 1_800)]
+    [InlineData(MembershipTier.Gold, 1_500)]
+    [InlineData(MembershipTier.Platinum, 1_200)]
+    public void CalculateFee_MembershipDiscount_AppliedCorrectly(MembershipTier tier, decimal expectedTotal)
+    {
+        // Arrange — Car, 2 hours past grace on a weekday
+        var checkIn = new DateTime(2026, 3, 16, 10, 0, 0); // Monday
+        var checkOut = checkIn.AddMinutes(GracePeriodMinutes + 120);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, tier, checkIn, checkOut);
+
+        // Assert
+        Assert.Equal(2_000m, result.BaseFee);
+        Assert.Equal(expectedTotal, result.TotalFee);
+    }
+
+    [Fact]
+    public void CalculateFee_MembershipDiscount_AppliedToBasePlusSurcharge()
+    {
+        // Arrange — Gold member, Saturday, car 2h past grace
+        var checkIn = new DateTime(2026, 3, 21, 10, 0, 0); // Saturday
+        var checkOut = checkIn.AddMinutes(GracePeriodMinutes + 120);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Gold, checkIn, checkOut);
+
+        // Assert — base=2000, surcharge=400, discount=25% of (2000+400)=600, total=2000+400-600=1800
+        Assert.Equal(2_000m, result.BaseFee);
+        Assert.Equal(400m, result.SurchargeAmount);
+        Assert.Equal(600m, result.DiscountAmount);
+        Assert.Equal(1_800m, result.TotalFee);
+    }
+
     #endregion
 
     #region Lost Ticket
