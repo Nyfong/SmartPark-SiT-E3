@@ -98,14 +98,19 @@ public class ParkingFeeCalculator
         else
             surcharge = 0m;
 
-        var totalFee = baseFee + surcharge + overnight;
+        // Step 7: Membership discount on (baseFee + surcharge)
+        var discountRate = GetDiscountRate(membership);
+        var discount = (baseFee + surcharge) * discountRate;
+
+        var totalFee = baseFee + surcharge - discount + overnight;
 
         return new ParkingFeeResult
         {
             BaseFee = baseFee,
             SurchargeAmount = surcharge,
+            DiscountAmount = discount,
             TotalFee = totalFee,
-            Breakdown = $"Vehicle: {vehicleType}, Hours: {billableHours}, Base: {baseFee}, Surcharge: {surcharge}, Overnight: {overnight} KHR"
+            Breakdown = $"Vehicle: {vehicleType}, Hours: {billableHours}, Base: {baseFee}, Surcharge: {surcharge}, Discount: {discount}, Overnight: {overnight} KHR"
         };
     }
 
@@ -123,6 +128,14 @@ public class ParkingFeeCalculator
         VehicleType.Car => CarDailyCap,
         VehicleType.SUV => SuvDailyCap,
         _ => throw new ArgumentOutOfRangeException(nameof(vehicleType))
+    };
+
+    private static decimal GetDiscountRate(MembershipTier membership) => membership switch
+    {
+        MembershipTier.Silver => SilverDiscountRate,
+        MembershipTier.Gold => GoldDiscountRate,
+        MembershipTier.Platinum => PlatinumDiscountRate,
+        _ => 0m
     };
 
     private static bool SessionSpansPastTenPM(DateTime checkIn, DateTime checkOut)
