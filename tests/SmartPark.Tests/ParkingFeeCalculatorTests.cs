@@ -393,5 +393,170 @@ public class ParkingFeeCalculatorTests
     #endregion
 
     #region Property-Based Tests
+
+    private static Arbitrary<(DateTime checkIn, DateTime checkOut)> ValidDateTimePairArbitrary()
+    {
+        return Arb.From(
+            from year in Gen.Choose(2024, 2026)
+            from month in Gen.Choose(1, 12)
+            from day in Gen.Choose(1, 28)
+            from hour in Gen.Choose(0, 23)
+            from minute in Gen.Choose(0, 59)
+            from durationMinutes in Gen.Choose(1, 2880) // 1 min to 48 hours
+            let checkIn = new DateTime(year, month, day, hour, minute, 0)
+            let checkOut = checkIn.AddMinutes(durationMinutes)
+            select (checkIn, checkOut));
+    }
+
+    private static Arbitrary<VehicleType> VehicleTypeArbitrary()
+    {
+        return Arb.From(Gen.Elements(VehicleType.Motorcycle, VehicleType.Car, VehicleType.SUV));
+    }
+
+    private static Arbitrary<MembershipTier> MembershipTierArbitrary()
+    {
+        return Arb.From(Gen.Elements(
+            MembershipTier.Guest, MembershipTier.Silver,
+            MembershipTier.Gold, MembershipTier.Platinum));
+    }
+
+    private Arbitrary<(VehicleType vehicle, MembershipTier membership)> VehicleMembershipPairArbitrary()
+    {
+        return Arb.From(
+            from v in Gen.Elements(VehicleType.Motorcycle, VehicleType.Car, VehicleType.SUV)
+            from m in Gen.Elements(MembershipTier.Guest, MembershipTier.Silver, MembershipTier.Gold, MembershipTier.Platinum)
+            select (v, m));
+    }
+
+    [Property(MaxTest = 200)]
+    public Property FeeIsNeverNegative()
+    {
+        var flagsGen = from lost in Arb.Generate<bool>()
+                       from holiday in Arb.Generate<bool>()
+                       select (lost, holiday);
+
+        return Prop.ForAll(
+            VehicleMembershipPairArbitrary(),
+            ValidDateTimePairArbitrary(),
+            Arb.From(flagsGen),
+            (vm, dates, flags) =>
+            {
+                var result = _calculator.CalculateFee(
+                    vm.vehicle, vm.membership, dates.checkIn, dates.checkOut, flags.lost, flags.holiday);
+                return result.TotalFee >= 0;
+            });
+    }
+
+    [Property(MaxTest = 200)]
+    public Property GracePeriodIsAlwaysFree()
+    {
+        return Prop.ForAll(
+            VehicleMembershipPairArbitrary(),
+            Arb.From(Gen.Choose(0, 30)),
+            (vm, minutes) =>
+            {
+                var checkIn = new DateTime(2026, 3, 16, 10, 0, 0);
+                var checkOut = checkIn.AddMinutes(minutes);
+                var result = _calculator.CalculateFee(vm.vehicle, vm.membership, checkIn, checkOut);
+                return result.BaseFee == 0;
+            });
+    }
+
+    [Property(MaxTest = 200)]
+    public Property LongerStaysCostMoreOrEqual()
+    {
+        var durationsGen = from baseMin in Gen.Choose(31, 1440)
+                           from extra in Gen.Choose(1, 480)
+                           select (baseMin, extra);
+
+        return Prop.ForAll(
+            VehicleTypeArbitrary(),
+            Arb.From(durationsGen),
+            (vehicleType, dur) =>
+            {
+                var checkIn = new DateTime(2026, 3, 16, 8, 0, 0);
+                var checkOutShort = checkIn.AddMinutes(dur.baseMin);
+                var checkOutLong = checkIn.AddMinutes(dur.baseMin + dur.extra);
+
+                var feeShort = _calculator.CalculateFee(vehicleType, MembershipTier.Guest, checkIn, checkOutShort);
+                var feeLong = _calculator.CalculateFee(vehicleType, MembershipTier.Guest, checkIn, checkOutLong);
+
+                return feeLong.BaseFee >= feeShort.BaseFee;
+            });
+    }
+
+    [Property(MaxTest = 200)]
+    public Property MembersPayLessOrEqualToGuests()
+    {
+        return Prop.ForAll(
+            VehicleMembershipPairArbitrary(),
+            ValidDateTimePairArbitrary(),
+            (vm, dates) =>
+            {
+                var guestFee = _calculator.CalculateFee(
+                    vm.vehicle, MembershipTier.Guest, dates.checkIn, dates.checkOut);
+                var memberFee = _calculator.CalculateFee(
+                    vm.vehicle, vm.membership, dates.checkIn, dates.checkOut);
+                return memberFee.TotalFee <= guestFee.TotalFee;
+            });
+    }
+
+    [Property(MaxTest = 200)]
+    public Property HigherTierGivesHigherOrEqualDiscount()
+    {
+        return Prop.ForAll(
+            VehicleTypeArbitrary(),
+            ValidDateTimePairArbitrary(),
+            (vehicleType, dates) =>
+            {
+                var silver = _calculator.CalculateFee(vehicleType, MembershipTier.Silver, dates.checkIn, dates.checkOut);
+                var gold = _calculator.CalculateFee(vehicleType, MembershipTier.Gold, dates.checkIn, dates.checkOut);
+                var platinum = _calculator.CalculateFee(vehicleType, MembershipTier.Platinum, dates.checkIn, dates.checkOut);
+
+                return silver.DiscountAmount <= gold.DiscountAmount
+                    && gold.DiscountAmount <= platinum.DiscountAmount;
+            });
+    }
+
+    [Property(MaxTest = 200)]
+    public Property LostTicketAddsExactly20000()
+    {
+        return Prop.ForAll(
+            VehicleMembershipPairArbitrary(),
+            ValidDateTimePairArbitrary(),
+            (vm, dates) =>
+            {
+                var withoutLost = _calculator.CalculateFee(
+                    vm.vehicle, vm.membership, dates.checkIn, dates.checkOut, false, false);
+                var withLost = _calculator.CalculateFee(
+                    vm.vehicle, vm.membership, dates.checkIn, dates.checkOut, true, false);
+
+                return withLost.TotalFee - withoutLost.TotalFee == 20_000m;
+            });
+    }
+
+    [Property(MaxTest = 200)]
+    public Property DailyCapIsRespected()
+    {
+        return Prop.ForAll(
+            VehicleTypeArbitrary(),
+            ValidDateTimePairArbitrary(),
+            (vehicleType, dates) =>
+            {
+                var result = _calculator.CalculateFee(
+                    vehicleType, MembershipTier.Guest, dates.checkIn, dates.checkOut);
+
+                var cap = vehicleType switch
+                {
+                    VehicleType.Motorcycle => 4_000m,
+                    VehicleType.Car => 8_000m,
+                    VehicleType.SUV => 12_000m,
+                    _ => decimal.MaxValue
+                };
+
+                return result.BaseFee <= cap;
+            });
+    }
+
     #endregion
 }
