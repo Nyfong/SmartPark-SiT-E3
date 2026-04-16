@@ -81,8 +81,14 @@ public class ParkingFeeCalculator
         var billableHours = (int)Math.Ceiling((totalMinutes - GracePeriodMinutes) / 60.0);
         if (billableHours < 1) billableHours = 1;
 
-        // Step 4: Base fee (hourly rate only for car for now)
-        var hourlyRate = CarRatePerHour;
+        // Step 4: Base fee
+        var hourlyRate = vehicleType switch
+        {
+            VehicleType.Motorcycle => MotorcycleRatePerHour,
+            VehicleType.Car => CarRatePerHour,
+            VehicleType.SUV => SuvRatePerHour,
+            _ => throw new ArgumentOutOfRangeException(nameof(vehicleType))
+        };
         var baseFee = billableHours * hourlyRate;
 
         return new ParkingFeeResult
