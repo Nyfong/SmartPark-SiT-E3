@@ -76,7 +76,28 @@ public class ParkingFeeCalculatorTests
     #endregion
 
     #region Basic Fee Calculation
+
+    [Theory]
+    [InlineData(VehicleType.Motorcycle, 2, 1_000)]
+    [InlineData(VehicleType.Car, 3, 3_000)]
+    [InlineData(VehicleType.SUV, 1, 1_500)]
+    public void CalculateFee_BasicRate_ReturnsCorrectFee(VehicleType type, int hoursAfterGrace, decimal expected)
+    {
+        // Arrange
+        var checkIn = new DateTime(2026, 3, 16, 10, 0, 0);
+        var checkOut = checkIn.AddMinutes(GracePeriodMinutes + (hoursAfterGrace * 60));
+
+        // Act
+        var result = _calculator.CalculateFee(type, MembershipTier.Guest, checkIn, checkOut);
+
+        // Assert
+        Assert.Equal(expected, result.BaseFee);
+        Assert.Equal(expected, result.TotalFee);
+    }
+
     #endregion
+
+    private const int GracePeriodMinutes = 30;
 
     #region Duration Rounding
     #endregion
