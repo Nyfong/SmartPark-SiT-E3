@@ -60,9 +60,119 @@ public class ParkingFeeCalculator
         bool isLostTicket = false,
         bool isHoliday = false)
     {
-        // TODO: Implement the 9-step fee calculation using TDD.
-        // Write a failing test first (RED), then implement just enough to pass (GREEN).
-        throw new NotImplementedException(
-            "Implement this method using TDD — see the assignment spec for the 9-step calculation flow.");
+        // Step 1: Validate
+        if (checkOut < checkIn)
+            throw new ArgumentException("Check-out time cannot be before check-in time.");
+
+        var totalMinutes = (checkOut - checkIn).TotalMinutes;
+
+        // Step 2: Grace period (lost ticket penalty still applies)
+        if (totalMinutes <= GracePeriodMinutes)
+        {
+            var penalty = isLostTicket ? LostTicketPenalty : 0m;
+            return new ParkingFeeResult
+            {
+                BaseFee = 0,
+                LostTicketPenalty = penalty,
+                TotalFee = penalty,
+                Breakdown = penalty > 0
+                    ? $"Grace period — lost ticket penalty: {penalty} KHR"
+                    : "Within grace period — free parking."
+            };
+        }
+
+        // Step 3: Calculate billable hours
+        var billableHours = (int)Math.Ceiling((totalMinutes - GracePeriodMinutes) / 60.0);
+        if (billableHours < 1) billableHours = 1;
+
+        // Step 4: Base fee with daily cap
+        var hourlyRate = GetHourlyRate(vehicleType);
+        var dailyCap = GetDailyCap(vehicleType);
+        var baseFee = Math.Min(billableHours * hourlyRate, dailyCap);
+
+        // Step 5: Overnight fee
+        var overnight = SessionSpansPastTenPM(checkIn, checkOut) ? OvernightFlatFee : 0m;
+
+        // Step 6: Surcharge — holiday (50%) takes priority over weekend (20%)
+        decimal surcharge;
+        if (isHoliday)
+            surcharge = baseFee * HolidaySurchargeRate;
+        else if (checkIn.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+            surcharge = baseFee * WeekendSurchargeRate;
+        else
+            surcharge = 0m;
+
+        // Step 7: Membership discount on (baseFee + surcharge)
+        var discountRate = GetDiscountRate(membership);
+        var discount = (baseFee + surcharge) * discountRate;
+
+        // Step 8: Lost ticket penalty (not subject to discounts)
+        var lostPenalty = isLostTicket ? LostTicketPenalty : 0m;
+
+        // Step 9: Total (never negative)
+        var totalFee = Math.Max(0, baseFee + surcharge - discount + overnight + lostPenalty);
+
+        return new ParkingFeeResult
+        {
+            BaseFee = baseFee,
+            SurchargeAmount = surcharge,
+            DiscountAmount = discount,
+            LostTicketPenalty = lostPenalty,
+            TotalFee = totalFee,
+            Breakdown = BuildBreakdown(vehicleType, billableHours, baseFee, surcharge, discount, overnight, lostPenalty, totalFee)
+        };
+    }
+
+    private static decimal GetHourlyRate(VehicleType vehicleType) => vehicleType switch
+    {
+        VehicleType.Motorcycle => MotorcycleRatePerHour,
+        VehicleType.Car => CarRatePerHour,
+        VehicleType.SUV => SuvRatePerHour,
+        _ => throw new ArgumentOutOfRangeException(nameof(vehicleType))
+    };
+
+    private static decimal GetDailyCap(VehicleType vehicleType) => vehicleType switch
+    {
+        VehicleType.Motorcycle => MotorcycleDailyCap,
+        VehicleType.Car => CarDailyCap,
+        VehicleType.SUV => SuvDailyCap,
+        _ => throw new ArgumentOutOfRangeException(nameof(vehicleType))
+    };
+
+    private static decimal GetDiscountRate(MembershipTier membership) => membership switch
+    {
+        MembershipTier.Silver => SilverDiscountRate,
+        MembershipTier.Gold => GoldDiscountRate,
+        MembershipTier.Platinum => PlatinumDiscountRate,
+        _ => 0m
+    };
+
+    private static string BuildBreakdown(
+        VehicleType vehicleType, int hours, decimal baseFee,
+        decimal surcharge, decimal discount, decimal overnight,
+        decimal penalty, decimal total)
+    {
+        var parts = new List<string>
+        {
+            $"{vehicleType} | {hours}h billable",
+            $"Base: {baseFee:N0} KHR"
+        };
+        if (surcharge > 0) parts.Add($"Surcharge: +{surcharge:N0}");
+        if (discount > 0) parts.Add($"Discount: -{discount:N0}");
+        if (overnight > 0) parts.Add($"Overnight: +{overnight:N0}");
+        if (penalty > 0) parts.Add($"Lost ticket: +{penalty:N0}");
+        parts.Add($"Total: {total:N0} KHR");
+        return string.Join(" | ", parts);
+    }
+
+    private static bool SessionSpansPastTenPM(DateTime checkIn, DateTime checkOut)
+    {
+        if (checkIn.Hour >= OvernightHourThreshold || checkOut.Hour >= OvernightHourThreshold)
+            return true;
+
+        if (checkOut.Date > checkIn.Date)
+            return true;
+
+        return false;
     }
 }
