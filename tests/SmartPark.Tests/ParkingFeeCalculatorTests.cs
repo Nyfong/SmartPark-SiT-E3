@@ -172,6 +172,56 @@ public class ParkingFeeCalculatorTests
     #endregion
 
     #region Weekend Surcharge
+
+    [Fact]
+    public void CalculateFee_Weekend_Saturday_Adds20PercentSurcharge()
+    {
+        // Arrange — Saturday, 2 hours total (1.5h past grace → 2 billable → wait no)
+        // 2h total = 120 min. 120-30=90, ceil(90/60)=2 hours. Car: 2*1000=2000. 20% of 2000=400.
+        var checkIn = new DateTime(2026, 3, 21, 10, 0, 0); // Saturday
+        var checkOut = checkIn.AddHours(2).AddMinutes(30); // 2.5 hours
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Guest, checkIn, checkOut);
+
+        // Assert — 2.5h total - 30m grace = 2h → 2,000 base + 400 surcharge = 2,400
+        Assert.Equal(2_000m, result.BaseFee);
+        Assert.Equal(400m, result.SurchargeAmount);
+        Assert.Equal(2_400m, result.TotalFee);
+    }
+
+    [Fact]
+    public void CalculateFee_Weekend_Sunday_Adds20PercentSurcharge()
+    {
+        // Arrange — Sunday, motorcycle 1h past grace
+        var checkIn = new DateTime(2026, 3, 22, 10, 0, 0); // Sunday
+        var checkOut = checkIn.AddMinutes(GracePeriodMinutes + 60);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Motorcycle, MembershipTier.Guest, checkIn, checkOut);
+
+        // Assert — 500 base + 100 surcharge = 600
+        Assert.Equal(500m, result.BaseFee);
+        Assert.Equal(100m, result.SurchargeAmount);
+        Assert.Equal(600m, result.TotalFee);
+    }
+
+    [Fact]
+    public void CalculateFee_Weekday_NoSurcharge()
+    {
+        // Arrange — Monday, car 2 hours past grace
+        var checkIn = new DateTime(2026, 3, 16, 10, 0, 0); // Monday
+        var checkOut = checkIn.AddMinutes(GracePeriodMinutes + 120);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Guest, checkIn, checkOut);
+
+        // Assert — 2,000 base, no surcharge
+        Assert.Equal(2_000m, result.BaseFee);
+        Assert.Equal(0m, result.SurchargeAmount);
+        Assert.Equal(2_000m, result.TotalFee);
+    }
+
     #endregion
 
     #region Holiday Surcharge
