@@ -300,6 +300,53 @@ public class ParkingFeeCalculatorTests
     #endregion
 
     #region Lost Ticket
+
+    [Fact]
+    public void CalculateFee_LostTicket_AddsPenalty()
+    {
+        // Arrange — Car, 2 hours past grace, lost ticket
+        var checkIn = new DateTime(2026, 3, 16, 10, 0, 0);
+        var checkOut = checkIn.AddMinutes(GracePeriodMinutes + 120);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Guest, checkIn, checkOut, isLostTicket: true);
+
+        // Assert — 2,000 base + 20,000 penalty = 22,000
+        Assert.Equal(20_000m, result.LostTicketPenalty);
+        Assert.Equal(22_000m, result.TotalFee);
+    }
+
+    [Fact]
+    public void CalculateFee_LostTicket_PenaltyNotReducedByDiscount()
+    {
+        // Arrange — Gold member, car, lost ticket
+        var checkIn = new DateTime(2026, 3, 16, 10, 0, 0);
+        var checkOut = checkIn.AddMinutes(GracePeriodMinutes + 120);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Gold, checkIn, checkOut, isLostTicket: true);
+
+        // Assert — base=2000, discount=500, penalty=20000 (not discounted)
+        // total = 2000 - 500 + 20000 = 21,500
+        Assert.Equal(20_000m, result.LostTicketPenalty);
+        Assert.Equal(21_500m, result.TotalFee);
+    }
+
+    [Fact]
+    public void CalculateFee_LostTicket_DuringGracePeriod_OnlyPenalty()
+    {
+        // Arrange — within grace period but lost ticket
+        var checkIn = new DateTime(2026, 3, 16, 10, 0, 0);
+        var checkOut = checkIn.AddMinutes(15);
+
+        // Act
+        var result = _calculator.CalculateFee(VehicleType.Car, MembershipTier.Guest, checkIn, checkOut, isLostTicket: true);
+
+        // Assert — 0 base + 20,000 penalty = 20,000
+        Assert.Equal(0m, result.BaseFee);
+        Assert.Equal(20_000m, result.TotalFee);
+    }
+
     #endregion
 
     #region Property-Based Tests
