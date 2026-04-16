@@ -89,13 +89,18 @@ public class ParkingFeeCalculator
         // Step 5: Overnight fee
         var overnight = SessionSpansPastTenPM(checkIn, checkOut) ? OvernightFlatFee : 0m;
 
-        var totalFee = baseFee + overnight;
+        // Step 6: Weekend surcharge (applied to baseFee)
+        var isWeekend = checkIn.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+        var surcharge = isWeekend ? baseFee * WeekendSurchargeRate : 0m;
+
+        var totalFee = baseFee + surcharge + overnight;
 
         return new ParkingFeeResult
         {
             BaseFee = baseFee,
+            SurchargeAmount = surcharge,
             TotalFee = totalFee,
-            Breakdown = $"Vehicle: {vehicleType}, Hours: {billableHours}, Base: {baseFee}, Overnight: {overnight} KHR"
+            Breakdown = $"Vehicle: {vehicleType}, Hours: {billableHours}, Base: {baseFee}, Surcharge: {surcharge}, Overnight: {overnight} KHR"
         };
     }
 
